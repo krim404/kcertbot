@@ -1,5 +1,5 @@
 FROM registry.krim.dev/proxy/certbot/certbot
-RUN apk update && apk install curl
+RUN apk update && apk add curl
 RUN ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \
     case ${ARCH} in \
       x86_64|amd64) echo "amd64" > /tmp/arch ;; \
