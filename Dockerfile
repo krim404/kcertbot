@@ -1,5 +1,5 @@
 FROM registry.krim.dev/proxy/certbot/certbot
-RUN apk update && apk add curl)
+RUN apk update && apk add curl
 
 RUN ARCH=$(uname -m) && \
     case $ARCH in \
