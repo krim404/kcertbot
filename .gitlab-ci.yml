@@ -16,7 +16,7 @@ build:
   before_script:
     - docker login -u $HARBOR_USERNAME -p $HARBOR_PASSWORD $HARBOR_HOST
   script:
-    - docker build -t $IMAGE_NAME:$CI_COMMIT_REF_SLUG .
+    - docker build --no-cache -t $IMAGE_NAME:$CI_COMMIT_REF_SLUG .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH
@@ -42,7 +42,7 @@ push:
     - docker:27.3.0-dind
   script:
     - docker buildx create --use --name builder_$CI_PROJECT_NAME
-    - docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:$CI_COMMIT_REF_SLUG -t $IMAGE_NAME:latest --push . 
+    - docker buildx build --no-cache --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:$CI_COMMIT_REF_SLUG -t $IMAGE_NAME:latest --push . 
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
