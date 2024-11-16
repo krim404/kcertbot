@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: certbot-cron
+  labels:
+    app: certbot
+spec:
+  schedule: "0 */12 * * *"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        app: certbot
+    spec:
+      template:
+        spec:
+          securityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            fsGroup: 33
+          serviceAccountName: certbot-service-account
+          containers:
+            - command:
+                - /bin/sh
+                - -c
+              args:
+                - |
+                  trap 'exit 0' TERM;
+                  certbot renew
+                  kubectl exec service/nginx -- nginx -s reload
+              image: kcertbot:latest
+              name: certbot
+              volumeMounts:
+                - mountPath: /etc/letsencrypt
+                  name: certbot-conf
+                - mountPath: /var/www/certbot
+                  name: certbot-www
+          restartPolicy: OnFailure
+          volumes:
+            - hostPath:
+                path: /var/certbot/www
+              name: certbot-www
+            - hostPath:
+                path: /var/certbot/conf
+              name: certbot-conf

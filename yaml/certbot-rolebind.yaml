@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: certbot-pod-exec-rolebinding
+  labels:
+    app: webserver
+subjects:
+  - kind: ServiceAccount
+    name: certbot-service-account
+    namespace: web
+roleRef:
+  kind: Role
+  name: certpod-pod-exec-role
+  apiGroup: rbac.authorization.k8s.io
