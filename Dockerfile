@@ -8,4 +8,4 @@ RUN ARCH=$(uname -m) && \
     esac && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
 RUN chmod 777 ./kubectl && mv ./kubectl /usr/bin/
-RUN chmod 777 /var/lib/letsencrypt /var/log/letsencrypt
+RUN mkdir /var/lib/letsencrypt && mkdir /var/log/letsencrypt && chmod 777 /var/lib/letsencrypt && chmod 777 /var/log/letsencrypt
