@@ -1,4 +1,4 @@
-FROM registry.krim.dev/proxy/certbot/certbot
+FROM certbot/certbot
 RUN apk update && apk add curl
 
 RUN ARCH=$(uname -m) && \
