@@ -1,5 +1,6 @@
 FROM certbot/certbot
 RUN apk update && apk add curl
+RUN pip install certbot-dns-cloudflare
 
 RUN ARCH=$(uname -m) && \
     case $ARCH in \
