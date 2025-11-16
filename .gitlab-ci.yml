@@ -1,7 +1,7 @@
 stages:
   - build
   - scan
-  - pushit
+  - push
 
 variables:
   AFTER_SCRIPT_IGNORE_ERRORS: "true"
@@ -30,7 +30,7 @@ trivy_scan:
   rules:
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
 
-pushit:
+push:
   stage: push
   image: docker:27.5.0
   before_script:
