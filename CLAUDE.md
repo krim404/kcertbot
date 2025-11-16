@@ -4,29 +4,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KCertbot is a Docker-based extension of the official certbot that includes kubectl. It enables automatic SSL certificate renewal within Kubernetes clusters with the ability to reload webservers after certificate updates. The project is designed to run as a Kubernetes CronJob.
+KCertbot is a Docker-based extension of certbot that includes kubectl and yq. It manages SSL certificates in Kubernetes by storing them as Secrets and using Reflector for distribution. Designed to run as Kubernetes CronJobs with emptyDir for certificate storage.
 
 ## Architecture
 
 ### Container Build
-- Base image: `certbot/certbot`
-- Adds kubectl binary (supports both amd64 and arm64 architectures)
-- Creates necessary directories: `/var/lib/letsencrypt` and `/var/log/letsencrypt`
+- Base image: `certbot/certbot` (Alpine-based)
+- Adds kubectl binary (multi-arch: amd64/arm64)
+- Adds yq from Alpine edge/community repository
+- Includes custom scripts:
+  - `/scripts/update-k8s-secret.sh` - Deploy hook for certbot
+  - `/scripts/restore-letsencrypt.sh` - Restores cert structure from secrets
 - Multi-architecture support via GitLab CI buildx
 
-### Kubernetes Components
-The project consists of four Kubernetes resources in the `yaml/` directory:
+### Certificate Storage Architecture
+**Key Principle:** Certificates are stored as Kubernetes Secrets, not on persistent volumes.
 
-1. **ServiceAccount** (`certbot-serviceaccount.yaml`): Service account used by the CronJob
-2. **Role** (`certbot-pod-exec-role.yaml`): Grants permissions for pods/exec and service access
-3. **RoleBinding** (`certbot-rolebind.yaml`): Binds the role to the service account in the `web` namespace
-4. **CronJob** (`certbot-cronjob.yaml`): Runs every 12 hours, executes `certbot renew` and reloads nginx via kubectl
+1. **ACME Account**: Stored in `certbot-acme-account` secret (meta.json, regr.json, private_key.json)
+2. **Certificates**: Each domain has a secret `tls-{domain}` containing:
+   - `fullchain.pem` - Full certificate chain
+   - `privkey.pem` - Private key
+   - `renewal.conf` - Certbot renewal configuration
+3. **Cert Registry**: ConfigMap mapping domains to nodes
+4. **Distribution**: Reflector mirrors secrets to namespaces on demand
 
-### Key Workflow
-1. CronJob triggers certbot renewal
-2. After renewal, executes: `kubectl exec service/nginx -- nginx -s reload`
-3. Uses host path volumes for persistence: `/var/certbot/www` and `/var/certbot/conf`
-4. Runs as non-root user (UID/GID 33)
+### Runtime Flow (per CronJob run)
+1. **emptyDir** created (empty filesystem)
+2. **InitContainer** (`restore-letsencrypt.sh`):
+   - Restores ACME account from secret
+   - Queries cert-registry for this node's domains
+   - For each domain: restores cert as `archive/domain/{fullchain,privkey}1.pem`
+   - Creates symlinks in `live/domain/` → `archive/domain/*1.pem`
+3. **Certbot Container**:
+   - Runs `certbot renew --deploy-hook /scripts/update-k8s-secret.sh`
+   - On renewal: certbot creates `*2.pem` files, updates symlinks
+   - Deploy hook saves renewed cert to secret
+4. **emptyDir** deleted (next run starts fresh with version 1)
+
+### Why This Works
+- emptyDir always starts empty → always restore as version 1
+- Certbot renewal creates version 2 during the run
+- Next run: emptyDir empty again → restore latest (was v2) as v1
+- Certbot creates v2 again if needed
+
+### Scripts
+
+**`update-k8s-secret.sh`** (deploy hook):
+- Triggered by certbot for each renewed certificate
+- Creates/updates secret `tls-{domain}` with fullchain.pem, privkey.pem, renewal.conf
+- No nginx reload (handled separately)
+
+**`restore-letsencrypt.sh`** (initContainer):
+- Reads NODE_NAME environment variable
+- Restores ACME account structure
+- Queries cert-registry ConfigMap
+- For each domain assigned to this node:
+  - Fetches secret `tls-{domain}`
+  - Restores to `/etc/letsencrypt/archive/domain/*1.pem`
+  - Creates symlinks in `/etc/letsencrypt/live/domain/`
+
+## Deployment Structure
+
+Located in flux repository at `cluster/secrets/certbot/`:
+- `certbot-acme-account-secret.yaml` - ACME account
+- `cert-registry.yaml` - Domain to node mapping
+- `certbot-serviceaccount.yaml` - Service account in `secrets` namespace
+- `certbot-clusterrole.yaml` - Cluster-wide permissions
+- `certbot-clusterrolebinding.yaml` - Binds role to SA
+- `certbot-cronjob-{node}.yaml` - Per-node CronJobs
 
 ## Common Commands
 
@@ -35,48 +80,44 @@ The project consists of four Kubernetes resources in the `yaml/` directory:
 docker build -t kcertbot:latest .
 ```
 
-### Build Multi-Architecture Image (local)
+### Build Multi-Architecture Image
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t kcertbot:latest .
+docker buildx build --platform linux/amd64,linux/arm64 -t registry.krim.dev/library/kcertbot:latest --push .
 ```
 
-### Deploy to Kubernetes
+### Test Scripts Locally
 ```bash
-kubectl apply -f yaml/certbot-serviceaccount.yaml
-kubectl apply -f yaml/certbot-pod-exec-role.yaml
-kubectl apply -f yaml/certbot-rolebind.yaml
-kubectl apply -f yaml/certbot-cronjob.yaml
+# Test restore script (requires kubectl access and NODE_NAME)
+export NODE_NAME=pi5
+./restore-letsencrypt.sh
+
+# Test deploy hook (requires certbot environment variables)
+export RENEWED_DOMAINS=example.com
+export RENEWED_LINEAGE=/etc/letsencrypt/live/example.com
+./update-k8s-secret.sh
 ```
 
 ### Check CronJob Status
 ```bash
-kubectl get cronjob certbot-cron
-kubectl get jobs --selector=app=certbot
-```
-
-### View CronJob Logs
-```bash
-kubectl logs -l app=certbot --tail=50
+kubectl get cronjob -n secrets
+kubectl get jobs -n secrets --selector=app=certbot
+kubectl logs -n secrets -l app=certbot --tail=100
 ```
 
 ## GitLab CI/CD Pipeline
 
-The pipeline consists of three stages:
+Three stages:
+1. **build**: Builds and pushes Docker image to Harbor
+2. **scan**: Trivy security scan (HIGH/CRITICAL)
+3. **push**: Multi-arch build with `latest` tag (main branch only)
 
-1. **build**: Builds Docker image and pushes to Harbor registry (runs on all branches)
-2. **scan**: Runs Trivy security scan for HIGH/CRITICAL vulnerabilities (non-default branches only, allowed to fail)
-3. **push**: Multi-arch build (amd64/arm64) and push with `latest` tag (main branch only)
+**Required CI Variables:**
+- `HARBOR_HOST`, `HARBOR_USERNAME`, `HARBOR_PASSWORD`
 
-**Important**: The pipeline requires these GitLab CI variables:
-- `HARBOR_HOST`: Harbor registry hostname
-- `HARBOR_USERNAME`: Harbor registry username
-- `HARBOR_PASSWORD`: Harbor registry password
-- Docker-in-Docker certificates for buildx
+## Important Notes
 
-## Important Considerations
-
-- The namespace in `certbot-rolebind.yaml` is hardcoded to `web` - adjust if deploying to a different namespace
-- The CronJob assumes nginx service is available and named `nginx`
-- Host path volumes require appropriate permissions on the Kubernetes nodes
-- Certificate files are stored at `/var/certbot/conf` on the host
-- The image is tagged as `$HARBOR_HOST/library/$CI_PROJECT_NAME`
+- Certificates are NEVER stored in Git (only in secrets)
+- Each node runs its own CronJob with node-specific domains
+- hostPath `/srv/certbot/www` is shared with nginx for ACME challenges
+- RBAC allows certbot to create/update secrets cluster-wide
+- New certificates must be created via separate tooling (not in CronJob)

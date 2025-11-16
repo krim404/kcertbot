@@ -1,5 +1,6 @@
 FROM certbot/certbot
-RUN apk update && apk add curl
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+RUN apk update && apk add curl yq
 RUN pip install certbot-dns-cloudflare
 
 RUN ARCH=$(uname -m) && \
@@ -9,4 +10,10 @@ RUN ARCH=$(uname -m) && \
     esac && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
 RUN chmod 777 ./kubectl && mv ./kubectl /usr/bin/
+
+# Scripts kopieren
+COPY update-k8s-secret.sh /scripts/update-k8s-secret.sh
+COPY restore-letsencrypt.sh /scripts/restore-letsencrypt.sh
+RUN chmod +x /scripts/update-k8s-secret.sh /scripts/restore-letsencrypt.sh
+
 RUN mkdir /var/lib/letsencrypt && mkdir /var/log/letsencrypt && chmod 777 /var/lib/letsencrypt && chmod 777 /var/log/letsencrypt
