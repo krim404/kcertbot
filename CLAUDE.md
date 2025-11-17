@@ -65,10 +65,10 @@ KCertbot is a Docker-based extension of certbot that includes kubectl and yq. It
 
 ## Deployment Structure
 
-Located in flux repository at `cluster/secrets/certbot/`:
+Located in flux repository at `cluster/storage/certbot/`:
 - `certbot-acme-account-secret.yaml` - ACME account
 - `cert-registry.yaml` - Domain to node mapping
-- `certbot-serviceaccount.yaml` - Service account in `secrets` namespace
+- `certbot-serviceaccount.yaml` - Service account in `storage` namespace
 - `certbot-clusterrole.yaml` - Cluster-wide permissions
 - `certbot-clusterrolebinding.yaml` - Binds role to SA
 - `certbot-cronjob-{node}.yaml` - Per-node CronJobs
@@ -99,9 +99,9 @@ export RENEWED_LINEAGE=/etc/letsencrypt/live/example.com
 
 ### Check CronJob Status
 ```bash
-kubectl get cronjob -n secrets
-kubectl get jobs -n secrets --selector=app=certbot
-kubectl logs -n secrets -l app=certbot --tail=100
+kubectl get cronjob -n storage
+kubectl get jobs -n storage --selector=app=certbot
+kubectl logs -n storage -l app=certbot --tail=100
 ```
 
 ## GitLab CI/CD Pipeline

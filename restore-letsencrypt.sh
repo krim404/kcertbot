@@ -18,48 +18,54 @@ else
   echo "[WARN] No ACME account in secret"
 fi
 
-# 2. Get domains for this node from cert-registry
-echo "[INFO] Fetching domains from cert-registry..."
-kubectl get configmap cert-registry -n secrets -o jsonpath='{.data.registry\.yaml}' > /tmp/registry.yaml
-DOMAINS=$(yq eval ".certificates | to_entries | .[] | select(.value.node == \"$NODE_NAME\") | .key" /tmp/registry.yaml)
+# 2. Get certificates for this node from cert-registry
+echo "[INFO] Fetching certificates from cert-registry..."
+kubectl get configmap cert-registry -n storage -o jsonpath='{.data.registry\.yaml}' > /tmp/registry.yaml
+SECRET_NAMES=$(yq eval ".certificates | to_entries | .[] | select(.value.node == \"$NODE_NAME\") | .key" /tmp/registry.yaml)
 
-if [ -z "$DOMAINS" ]; then
-  echo "[WARN] No domains found for node $NODE_NAME"
+if [ -z "$SECRET_NAMES" ]; then
+  echo "[WARN] No certificates found for node $NODE_NAME"
   exit 0
 fi
 
-# 3. For each domain, restore renewal config and certs
-for domain in $DOMAINS; do
-  echo "[INFO] Processing domain: $domain"
-  SECRET_NAME="tls-${domain//./-}"
+# 3. For each certificate, restore renewal config and certs
+for SECRET_NAME in $SECRET_NAMES; do
+  echo "[INFO] Processing certificate: $SECRET_NAME"
 
   # Get TLS secret (skip if doesn't exist yet)
-  if ! kubectl get secret "$SECRET_NAME" -n secrets >/dev/null 2>&1; then
+  if ! kubectl get secret "$SECRET_NAME" -n storage >/dev/null 2>&1; then
     echo "[WARN] Secret $SECRET_NAME not found, skipping"
     continue
   fi
 
+  # Get primary domain (first domain in array) from registry
+  PRIMARY_DOMAIN=$(yq eval ".certificates.\"$SECRET_NAME\".domains[0]" /tmp/registry.yaml)
+
   # Create directories
   mkdir -p /etc/letsencrypt/renewal
-  mkdir -p /etc/letsencrypt/archive/$domain
-  mkdir -p /etc/letsencrypt/live/$domain
+  mkdir -p /etc/letsencrypt/archive/$PRIMARY_DOMAIN
+  mkdir -p /etc/letsencrypt/live/$PRIMARY_DOMAIN
 
   # Restore renewal config if exists
-  if kubectl get secret "$SECRET_NAME" -n secrets -o jsonpath='{.data.renewal\.conf}' 2>/dev/null | base64 -d > /etc/letsencrypt/renewal/$domain.conf 2>/dev/null; then
-    echo "[OK] Restored renewal config for $domain"
+  if kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.renewal\.conf}' 2>/dev/null | base64 -d > /etc/letsencrypt/renewal/$PRIMARY_DOMAIN.conf 2>/dev/null; then
+    echo "[OK] Restored renewal config for $PRIMARY_DOMAIN"
   else
-    echo "[WARN] No renewal.conf for $domain"
+    echo "[WARN] No renewal.conf for $PRIMARY_DOMAIN"
   fi
 
   # Restore certs as version 1
-  kubectl get secret "$SECRET_NAME" -n secrets -o jsonpath='{.data.fullchain\.pem}' | base64 -d > /etc/letsencrypt/archive/$domain/fullchain1.pem
-  kubectl get secret "$SECRET_NAME" -n secrets -o jsonpath='{.data.privkey\.pem}' | base64 -d > /etc/letsencrypt/archive/$domain/privkey1.pem
+  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.cert\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/cert1.pem
+  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.chain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/chain1.pem
+  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.fullchain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/fullchain1.pem
+  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.privkey\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/privkey1.pem
 
   # Create symlinks in live/
-  ln -sf ../../archive/$domain/fullchain1.pem /etc/letsencrypt/live/$domain/fullchain.pem
-  ln -sf ../../archive/$domain/privkey1.pem /etc/letsencrypt/live/$domain/privkey.pem
+  ln -sf ../../archive/$PRIMARY_DOMAIN/cert1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/cert.pem
+  ln -sf ../../archive/$PRIMARY_DOMAIN/chain1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/chain.pem
+  ln -sf ../../archive/$PRIMARY_DOMAIN/fullchain1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/fullchain.pem
+  ln -sf ../../archive/$PRIMARY_DOMAIN/privkey1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/privkey.pem
 
-  echo "[OK] Restored $domain"
+  echo "[OK] Restored $PRIMARY_DOMAIN"
 done
 
 echo "[OK] Let's Encrypt structure restored for $NODE_NAME"

@@ -8,12 +8,14 @@ set -e
 DOMAIN="$RENEWED_DOMAINS"
 CERT_PATH="$RENEWED_LINEAGE"
 SECRET_NAME="tls-${DOMAIN//./-}"
-SECRETS_NAMESPACE="secrets"
+SECRETS_NAMESPACE="storage"
 
 echo "[INFO] Processing renewed cert for domain: $DOMAIN"
 
-# Erstelle Secret mit fullchain.pem, privkey.pem und renewal.conf
+# Erstelle Secret mit allen Zertifikatsdateien und renewal.conf
 kubectl create secret generic "$SECRET_NAME" -n "$SECRETS_NAMESPACE" \
+  --from-file=cert.pem="$CERT_PATH/cert.pem" \
+  --from-file=chain.pem="$CERT_PATH/chain.pem" \
   --from-file=fullchain.pem="$CERT_PATH/fullchain.pem" \
   --from-file=privkey.pem="$CERT_PATH/privkey.pem" \
   --from-file=renewal.conf="/etc/letsencrypt/renewal/$DOMAIN.conf" \
