@@ -8,7 +8,7 @@ set -e
 DOMAIN="$RENEWED_DOMAINS"
 CERT_PATH="$RENEWED_LINEAGE"
 SECRET_NAME="tls-${DOMAIN//./-}"
-SECRETS_NAMESPACE="storage"
+SECRETS_NAMESPACE="${CERT_NAMESPACE:-storage}"
 
 echo "[INFO] Processing renewed cert for domain: $DOMAIN"
 

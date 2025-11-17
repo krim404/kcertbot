@@ -2,6 +2,8 @@
 set -e
 
 NODE_NAME="${NODE_NAME:-unknown}"
+CERT_NAMESPACE="${CERT_NAMESPACE:-storage}"
+CERT_REGISTRY_NAME="${CERT_REGISTRY_NAME:-cert-registry}"
 
 echo "[INFO] Restoring Let's Encrypt structure for node: $NODE_NAME"
 
@@ -19,8 +21,8 @@ else
 fi
 
 # 2. Get certificates for this node from cert-registry
-echo "[INFO] Fetching certificates from cert-registry..."
-kubectl get configmap cert-registry -n storage -o jsonpath='{.data.registry\.yaml}' > /tmp/registry.yaml
+echo "[INFO] Fetching certificates from $CERT_REGISTRY_NAME in namespace $CERT_NAMESPACE..."
+kubectl get configmap "$CERT_REGISTRY_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.registry\.yaml}' > /tmp/registry.yaml
 SECRET_NAMES=$(yq eval ".certificates | to_entries | .[] | select(.value.node == \"$NODE_NAME\") | .key" /tmp/registry.yaml)
 
 if [ -z "$SECRET_NAMES" ]; then
@@ -33,7 +35,7 @@ for SECRET_NAME in $SECRET_NAMES; do
   echo "[INFO] Processing certificate: $SECRET_NAME"
 
   # Get TLS secret (skip if doesn't exist yet)
-  if ! kubectl get secret "$SECRET_NAME" -n storage >/dev/null 2>&1; then
+  if ! kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" >/dev/null 2>&1; then
     echo "[WARN] Secret $SECRET_NAME not found, skipping"
     continue
   fi
@@ -47,17 +49,17 @@ for SECRET_NAME in $SECRET_NAMES; do
   mkdir -p /etc/letsencrypt/live/$PRIMARY_DOMAIN
 
   # Restore renewal config if exists
-  if kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.renewal\.conf}' 2>/dev/null | base64 -d > /etc/letsencrypt/renewal/$PRIMARY_DOMAIN.conf 2>/dev/null; then
+  if kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.renewal\.conf}' 2>/dev/null | base64 -d > /etc/letsencrypt/renewal/$PRIMARY_DOMAIN.conf 2>/dev/null; then
     echo "[OK] Restored renewal config for $PRIMARY_DOMAIN"
   else
     echo "[WARN] No renewal.conf for $PRIMARY_DOMAIN"
   fi
 
   # Restore certs as version 1
-  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.cert\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/cert1.pem
-  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.chain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/chain1.pem
-  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.fullchain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/fullchain1.pem
-  kubectl get secret "$SECRET_NAME" -n storage -o jsonpath='{.data.privkey\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/privkey1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.cert\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/cert1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.chain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/chain1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.fullchain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/fullchain1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.privkey\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/privkey1.pem
 
   # Create symlinks in live/
   ln -sf ../../archive/$PRIMARY_DOMAIN/cert1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/cert.pem

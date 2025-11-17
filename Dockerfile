@@ -3,6 +3,10 @@ RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repo
 RUN apk update && apk add curl yq bash
 RUN pip install certbot-dns-cloudflare
 
+# Default environment variables (can be overridden in pod spec)
+ENV CERT_NAMESPACE=storage
+ENV CERT_REGISTRY_NAME=cert-registry
+
 RUN ARCH=$(uname -m) && \
     case $ARCH in \
     x86_64)  ARCH="amd64" ;; \
