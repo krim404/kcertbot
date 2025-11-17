@@ -11,9 +11,14 @@ RUN ARCH=$(uname -m) && \
     case $ARCH in \
     x86_64)  ARCH="amd64" ;; \
     aarch64) ARCH="arm64" ;; \
+    *)       ARCH="amd64" ;; \
     esac && \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
-RUN chmod 777 ./kubectl && mv ./kubectl /usr/bin/
+    KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt) && \
+    echo "Downloading kubectl ${KUBECTL_VERSION} for ${ARCH}" && \
+    curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" -o /tmp/kubectl && \
+    chmod +x /tmp/kubectl && \
+    mv /tmp/kubectl /usr/bin/kubectl && \
+    kubectl version --client
 
 # Scripts kopieren
 COPY update-k8s-secret.sh /scripts/update-k8s-secret.sh
