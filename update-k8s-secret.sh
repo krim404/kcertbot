@@ -15,14 +15,16 @@ CERT_REGISTRY_NAME="${CERT_REGISTRY_NAME:-cert-registry}"
 echo "[INFO] Processing renewed cert for primary domain: $PRIMARY_DOMAIN"
 echo "[INFO] All domains: $RENEWED_DOMAINS"
 
-# Erstelle Secret mit allen Zertifikatsdateien und renewal.conf
+# Erstelle Secret mit allen Zertifikatsdateien, renewal.conf und Reflector-Annotation
 kubectl create secret generic "$SECRET_NAME" -n "$SECRETS_NAMESPACE" \
   --from-file=cert.pem="$CERT_PATH/cert.pem" \
   --from-file=chain.pem="$CERT_PATH/chain.pem" \
   --from-file=fullchain.pem="$CERT_PATH/fullchain.pem" \
   --from-file=privkey.pem="$CERT_PATH/privkey.pem" \
   --from-file=renewal.conf="/etc/letsencrypt/renewal/$PRIMARY_DOMAIN.conf" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | \
+  yq eval '.metadata.annotations["reflector.v1.k8s.emberstack.com/reflection-allowed"] = "true"' - | \
+  kubectl apply -f -
 
 echo "[OK] Secret $SECRET_NAME created/updated in $SECRETS_NAMESPACE"
 
