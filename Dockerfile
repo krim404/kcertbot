@@ -1,12 +1,12 @@
 FROM certbot/certbot
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
-RUN apk update && apk add curl yq
+RUN apk update && apk add curl yq bash
 RUN pip install certbot-dns-cloudflare
 
 RUN ARCH=$(uname -m) && \
     case $ARCH in \
-        x86_64)  ARCH="amd64" ;; \
-        aarch64) ARCH="arm64" ;; \
+    x86_64)  ARCH="amd64" ;; \
+    aarch64) ARCH="arm64" ;; \
     esac && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
 RUN chmod 777 ./kubectl && mv ./kubectl /usr/bin/
