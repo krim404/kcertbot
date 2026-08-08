@@ -1,9 +1,9 @@
 include:
   - project: library/ci-templates
-    ref: v1.1
+    ref: main
     file: /docker-image.yml
   - project: library/ci-templates
-    ref: v1.1
+    ref: main
     file: /jobs/lint.yml
 
 shellcheck:
