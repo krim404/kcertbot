@@ -106,13 +106,16 @@ kubectl logs -n storage -l app=certbot --tail=100
 
 ## GitLab CI/CD Pipeline
 
-Three stages:
-1. **build**: Builds and pushes Docker image to Harbor
-2. **scan**: Trivy security scan (HIGH/CRITICAL)
-3. **push**: Multi-arch build with `latest` tag (main branch only)
+The pipeline is provided by `library/ci-templates` (`/docker-image.yml`). Stages:
+
+1. **lint**: hadolint on the Dockerfile, shellcheck on both scripts at `style` severity
+2. **build**: merge requests and non-default branches only
+3. **push**: multi-arch build on `main`, tagged `latest`, `YYYY.MM.DD` and the branch slug
+4. **scan**: Trivy against the pushed digest, informational
+5. **sign**: cosign signature on the digest
 
 **Required CI Variables:**
-- `HARBOR_HOST`, `HARBOR_USERNAME`, `HARBOR_PASSWORD`
+- `HARBOR_HOST`, `HARBOR_USERNAME`, `HARBOR_PASSWORD`, `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD`
 
 ## Important Notes
 

@@ -45,27 +45,27 @@ for SECRET_NAME in $SECRET_NAMES; do
 
   # Create directories
   mkdir -p /etc/letsencrypt/renewal
-  mkdir -p /etc/letsencrypt/archive/$PRIMARY_DOMAIN
-  mkdir -p /etc/letsencrypt/live/$PRIMARY_DOMAIN
+  mkdir -p /etc/letsencrypt/archive/"$PRIMARY_DOMAIN"
+  mkdir -p /etc/letsencrypt/live/"$PRIMARY_DOMAIN"
 
   # Restore renewal config if exists
-  if kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.renewal\.conf}' 2>/dev/null | base64 -d > /etc/letsencrypt/renewal/$PRIMARY_DOMAIN.conf 2>/dev/null; then
+  if kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.renewal\.conf}' 2>/dev/null | base64 -d > /etc/letsencrypt/renewal/"$PRIMARY_DOMAIN".conf 2>/dev/null; then
     echo "[OK] Restored renewal config for $PRIMARY_DOMAIN"
   else
     echo "[WARN] No renewal.conf for $PRIMARY_DOMAIN"
   fi
 
   # Restore certs as version 1
-  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.cert\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/cert1.pem
-  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.chain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/chain1.pem
-  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.fullchain\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/fullchain1.pem
-  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.privkey\.pem}' | base64 -d > /etc/letsencrypt/archive/$PRIMARY_DOMAIN/privkey1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.cert\.pem}' | base64 -d > /etc/letsencrypt/archive/"$PRIMARY_DOMAIN"/cert1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.chain\.pem}' | base64 -d > /etc/letsencrypt/archive/"$PRIMARY_DOMAIN"/chain1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.fullchain\.pem}' | base64 -d > /etc/letsencrypt/archive/"$PRIMARY_DOMAIN"/fullchain1.pem
+  kubectl get secret "$SECRET_NAME" -n "$CERT_NAMESPACE" -o jsonpath='{.data.privkey\.pem}' | base64 -d > /etc/letsencrypt/archive/"$PRIMARY_DOMAIN"/privkey1.pem
 
   # Create symlinks in live/
-  ln -sf ../../archive/$PRIMARY_DOMAIN/cert1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/cert.pem
-  ln -sf ../../archive/$PRIMARY_DOMAIN/chain1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/chain.pem
-  ln -sf ../../archive/$PRIMARY_DOMAIN/fullchain1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/fullchain.pem
-  ln -sf ../../archive/$PRIMARY_DOMAIN/privkey1.pem /etc/letsencrypt/live/$PRIMARY_DOMAIN/privkey.pem
+  ln -sf ../../archive/"$PRIMARY_DOMAIN"/cert1.pem /etc/letsencrypt/live/"$PRIMARY_DOMAIN"/cert.pem
+  ln -sf ../../archive/"$PRIMARY_DOMAIN"/chain1.pem /etc/letsencrypt/live/"$PRIMARY_DOMAIN"/chain.pem
+  ln -sf ../../archive/"$PRIMARY_DOMAIN"/fullchain1.pem /etc/letsencrypt/live/"$PRIMARY_DOMAIN"/fullchain.pem
+  ln -sf ../../archive/"$PRIMARY_DOMAIN"/privkey1.pem /etc/letsencrypt/live/"$PRIMARY_DOMAIN"/privkey.pem
 
   echo "[OK] Restored $PRIMARY_DOMAIN"
 done

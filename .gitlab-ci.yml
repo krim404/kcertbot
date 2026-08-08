@@ -10,3 +10,4 @@ shellcheck:
   extends: .shellcheck
   variables:
     SHELL_FILES: restore-letsencrypt.sh update-k8s-secret.sh
+    SHELLCHECK_SEVERITY: style
